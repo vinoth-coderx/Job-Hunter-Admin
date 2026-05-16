@@ -8,8 +8,9 @@ import { Toggle } from "@/components/ui/toggle";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/icons";
 import { ApiError } from "@/lib/api";
-import { usersApi } from "@/lib/users";
+import { usersApi, UserTrustPayload } from "@/lib/users";
 import type { AdminUser, Role } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
 
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "seeker", label: "Job seeker" },
@@ -31,6 +32,8 @@ export function UserEditModal({
   const [verified, setVerified] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trust, setTrust] = useState<UserTrustPayload | null>(null);
+  const [loadingTrust, setLoadingTrust] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -38,6 +41,13 @@ export function UserEditModal({
       setRole(user.activeRole);
       setVerified(user.isEmailVerified);
       setError(null);
+      setTrust(null);
+      setLoadingTrust(true);
+      usersApi
+        .trust(user._id)
+        .then(setTrust)
+        .catch(() => undefined)
+        .finally(() => setLoadingTrust(false));
     }
   }, [user]);
 
@@ -121,6 +131,8 @@ export function UserEditModal({
             />
           </div>
 
+          <TrustPanel user={user} trust={trust} loading={loadingTrust} />
+
           <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
@@ -137,5 +149,124 @@ export function UserEditModal({
         </form>
       ) : null}
     </Modal>
+  );
+}
+
+function trustBand(score?: number): {
+  tone: "success" | "warn" | "danger" | "muted";
+  label: string;
+} {
+  if (score === undefined) return { tone: "muted", label: "unknown" };
+  if (score >= 70) return { tone: "success", label: "high" };
+  if (score >= 40) return { tone: "warn", label: "medium" };
+  return { tone: "danger", label: "low" };
+}
+
+function sevTone(s: string): "success" | "muted" | "warn" | "danger" {
+  if (s === "critical" || s === "high") return "danger";
+  if (s === "medium") return "warn";
+  if (s === "info") return "success";
+  return "muted";
+}
+
+function TrustPanel({
+  user,
+  trust,
+  loading,
+}: {
+  user: AdminUser;
+  trust: UserTrustPayload | null;
+  loading: boolean;
+}) {
+  const band = trustBand(user.security?.trustScore);
+  return (
+    <div className="surface p-3 space-y-3">
+      <div className="text-[12.5px] font-semibold uppercase tracking-wider text-fg-muted">
+        Trust & Safety
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-[12.5px]">
+        <div className="flex items-center justify-between rounded-md border border-border p-2">
+          <span className="text-fg-muted">Trust score</span>
+          <Badge tone={band.tone}>
+            {user.security?.trustScore ?? "?"} · {band.label}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between rounded-md border border-border p-2">
+          <span className="text-fg-muted">2FA</span>
+          <Badge tone={user.twoFactor?.enabled ? "success" : "muted"}>
+            {user.twoFactor?.enabled ? user.twoFactor.method ?? "on" : "off"}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between rounded-md border border-border p-2">
+          <span className="text-fg-muted">Email verified</span>
+          <Badge tone={user.isEmailVerified ? "success" : "warn"}>
+            {user.isEmailVerified ? "yes" : "no"}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between rounded-md border border-border p-2">
+          <span className="text-fg-muted">Phone verified</span>
+          <Badge tone={user.isPhoneVerified ? "success" : "muted"}>
+            {user.isPhoneVerified ? "yes" : "no"}
+          </Badge>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-[12px] text-fg-subtle">Loading sessions…</div>
+      ) : trust ? (
+        <>
+          <div>
+            <div className="mb-1.5 text-[12px] font-medium text-fg-muted">
+              Active sessions ({trust.sessions.length} of {trust.sessionCount})
+            </div>
+            {trust.sessions.length === 0 ? (
+              <div className="text-[12px] text-fg-subtle">
+                No active sessions.
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {trust.sessions.slice(0, 4).map((s) => (
+                  <li
+                    key={s._id}
+                    className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-[12px]"
+                  >
+                    <span className="truncate">
+                      {(s.platform ?? "unknown") + " · " + (s.ip ?? "—")}
+                    </span>
+                    <span className="text-fg-subtle">
+                      {s.geo?.city ?? s.geo?.country ?? ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <div className="mb-1.5 text-[12px] font-medium text-fg-muted">
+              Recent security events
+            </div>
+            {trust.recentEvents.length === 0 ? (
+              <div className="text-[12px] text-fg-subtle">No events.</div>
+            ) : (
+              <ul className="space-y-1">
+                {trust.recentEvents.slice(0, 5).map((e) => (
+                  <li
+                    key={e._id}
+                    className="flex items-center justify-between rounded-md border border-border px-2 py-1.5 text-[12px]"
+                  >
+                    <span>{e.type.replaceAll("_", " ")}</span>
+                    <Badge tone={sevTone(e.severity)}>{e.severity}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="text-[12px] text-fg-subtle">
+          Trust details unavailable.
+        </div>
+      )}
+    </div>
   );
 }

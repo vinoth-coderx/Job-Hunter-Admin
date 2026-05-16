@@ -26,8 +26,24 @@ export interface ConfigProbeResponse {
   detail?: string;
 }
 
+export interface ConfigRegistryEntry {
+  key: string;
+  category: AppConfigCategory;
+  isSecret: boolean;
+  description: string;
+  defaultValue?: string;
+  usedBy?: string;
+  /** True if a row already exists in app_configs for this key. */
+  alreadyConfigured: boolean;
+}
+
+export interface ConfigRegistryResponse {
+  entries: ConfigRegistryEntry[];
+}
+
 export const configApi = {
   list: () => api.get<ConfigListResponse>("/admin/config"),
+  registry: () => api.get<ConfigRegistryResponse>("/admin/config/registry"),
   upsert: (payload: ConfigUpsertPayload) =>
     api.put<AppConfigEntry>("/admin/config", payload),
   remove: (key: string) =>
@@ -44,7 +60,7 @@ export const CATEGORY_META: Record<
 > = {
   "job-board": {
     label: "Job boards",
-    description: "Adzuna, SerpAPI, JSearch (RapidAPI), TheirStack",
+    description: "Adzuna, SerpAPI, JSearch (RapidAPI), Real-Time Web Search",
   },
   payment: {
     label: "Payments",
@@ -66,9 +82,14 @@ export const CATEGORY_META: Record<
     label: "Crons",
     description: "Master kill-switch — pauses every background job",
   },
+  ai: {
+    label: "AI providers",
+    description:
+      "Model overrides, cost guards, rewrite toggles. API keys live on /ai.",
+  },
   misc: {
     label: "Misc",
-    description: "AI provider keys + everything else",
+    description: "MSG91, rate limits, anything else",
   },
 };
 
@@ -79,5 +100,6 @@ export const CATEGORIES: AppConfigCategory[] = [
   "email",
   "firebase",
   "cron",
+  "ai",
   "misc",
 ];

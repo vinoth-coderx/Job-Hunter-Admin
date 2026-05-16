@@ -1,9 +1,32 @@
 import { api } from "./api";
-import type { SubscriptionOverview, SubscriptionTier } from "./types";
+import type {
+  SubscriptionOverview,
+  SubscriptionPlan,
+  SubscriptionPlanInput,
+  SubscriptionTier,
+} from "./types";
 
 export const subscriptionsApi = {
   overview: () =>
     api.get<SubscriptionOverview>("/admin/subscriptions/overview"),
+  listPlans: () =>
+    api.get<{ plans: SubscriptionPlan[] }>("/admin/subscriptions/plans"),
+  createPlan: (body: SubscriptionPlanInput & { tier: string }) =>
+    api.post<{ plan: SubscriptionPlan }>("/admin/subscriptions/plans", body),
+  updatePlan: (tier: string, body: Partial<SubscriptionPlanInput>) =>
+    api.patch<{ plan: SubscriptionPlan }>(
+      `/admin/subscriptions/plans/${encodeURIComponent(tier)}`,
+      body,
+    ),
+  togglePlan: (tier: string, isActive: boolean) =>
+    api.patch<{ tier: string; isActive: boolean }>(
+      `/admin/subscriptions/plans/${encodeURIComponent(tier)}/toggle`,
+      { isActive },
+    ),
+  deletePlan: (tier: string) =>
+    api.delete<{ tier: string }>(
+      `/admin/subscriptions/plans/${encodeURIComponent(tier)}`,
+    ),
 };
 
 // Display order + colour for tier breakdown. Source for both the stacked bar

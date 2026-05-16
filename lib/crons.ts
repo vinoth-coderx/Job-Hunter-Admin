@@ -30,7 +30,7 @@ export const CRON_META: Record<
 > = {
   jobScraper: {
     description:
-      "Pulls jobs from Adzuna, SerpAPI, JSearch, TheirStack, Arbeitnow.",
+      "Pulls jobs from Adzuna, SerpAPI, JSearch, Real-Time Web Search, Arbeitnow.",
     tone: "accent",
   },
   subscriptionChecker: {

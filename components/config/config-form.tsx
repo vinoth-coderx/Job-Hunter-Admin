@@ -7,7 +7,12 @@ import { Select } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/icons";
-import { CATEGORIES, CATEGORY_META, configApi } from "@/lib/config";
+import {
+  CATEGORIES,
+  CATEGORY_META,
+  configApi,
+  type ConfigRegistryEntry,
+} from "@/lib/config";
 import type { AppConfigCategory, AppConfigEntry } from "@/lib/types";
 import { ApiError } from "@/lib/api";
 
@@ -35,11 +40,56 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
     value?: string;
   }>({});
 
+  // Registry of suggested keys — only loaded for new entries so the
+  // operator can pick a known key (auto-fills category + secret flag +
+  // hint) instead of remembering the exact name.
+  const [registry, setRegistry] = useState<ConfigRegistryEntry[] | null>(null);
+  const [suggestPick, setSuggestPick] = useState<string>("");
+
+  useEffect(() => {
+    if (isEdit) return;
+    let cancelled = false;
+    configApi
+      .registry()
+      .then((r) => {
+        if (!cancelled) setRegistry(r.entries);
+      })
+      .catch(() => {
+        // Registry endpoint may not be deployed on older backends —
+        // silently fall back to free-form entry.
+        if (!cancelled) setRegistry([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit]);
+
   // When switching to "secret" mode on an existing entry, blank the value
   // field so the placeholder communicates "leave empty to keep existing".
   useEffect(() => {
     if (isEdit && isSecret) setValue("");
   }, [isEdit, isSecret]);
+
+  const applySuggestion = (suggestKey: string) => {
+    setSuggestPick(suggestKey);
+    if (!suggestKey) return;
+    const entry = registry?.find((e) => e.key === suggestKey);
+    if (!entry) return;
+    setKey(entry.key);
+    setCategory(entry.category);
+    setIsSecret(entry.isSecret);
+    if (entry.defaultValue && !entry.isSecret) setValue(entry.defaultValue);
+    setNotes(
+      entry.usedBy
+        ? `${entry.description} (used by ${entry.usedBy})`
+        : entry.description,
+    );
+  };
+
+  const availableSuggestions = (registry ?? []).filter(
+    (e) => !e.alreadyConfigured,
+  );
+  const currentRegistryHint = registry?.find((e) => e.key === key.trim());
 
   const submit = async () => {
     setFieldErrors({});
@@ -99,6 +149,22 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
         </div>
       ) : null}
 
+      {!isEdit && availableSuggestions.length > 0 ? (
+        <Select
+          label="Suggested keys"
+          options={[
+            { value: "", label: "Pick from known backend keys…" },
+            ...availableSuggestions.map((e) => ({
+              value: e.key,
+              label: `${e.key}  ·  ${CATEGORY_META[e.category].label}`,
+            })),
+          ]}
+          value={suggestPick}
+          onChange={(e) => applySuggestion(e.target.value)}
+          hint="Backend-registered keys the admin hasn't configured yet — pick one to auto-fill key, category and secret flag."
+        />
+      ) : null}
+
       <Input
         label="Key"
         mono
@@ -110,7 +176,9 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
         hint={
           isEdit
             ? "Key is immutable. Delete the entry to rename."
-            : "UPPER_SNAKE_CASE. Matches the historical env-var name."
+            : currentRegistryHint
+              ? currentRegistryHint.description
+              : "UPPER_SNAKE_CASE. Matches the historical env-var name."
         }
         error={fieldErrors.key}
         leading={<Icon.sliders width={13} height={13} />}

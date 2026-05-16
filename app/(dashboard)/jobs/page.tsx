@@ -205,6 +205,9 @@ export default function JobsPage() {
   const enabled = (sources ?? []).filter((s) => s.enabled);
   const disabled = (sources ?? []).filter((s) => !s.enabled);
   const failed = (sources ?? []).filter((s) => Boolean(s.lastError));
+  const missingKey = (sources ?? []).filter(
+    (s) => s.enabled && s.configured === false,
+  );
   const totalLast =
     (sources ?? []).reduce((acc, s) => acc + (s.lastJobCount ?? 0), 0);
 
@@ -306,13 +309,23 @@ export default function JobsPage() {
               icon={<Icon.spark width={15} height={15} />}
             />
             <StatCard
-              label="Failures"
+              label="Needs attention"
               loading={loading && !sources}
-              value={sources ? failed.length : "—"}
-              hint="last-run errors"
+              value={sources ? failed.length + missingKey.length : "—"}
+              hint={
+                missingKey.length > 0
+                  ? `${missingKey.length} missing key · ${failed.length} errors`
+                  : "last-run errors"
+              }
               delta={
-                failed.length > 0
-                  ? { value: `${failed.length} failing`, tone: "danger" }
+                failed.length + missingKey.length > 0
+                  ? {
+                      value:
+                        missingKey.length > 0
+                          ? `${missingKey.length} key gap`
+                          : `${failed.length} failing`,
+                      tone: "danger",
+                    }
                   : undefined
               }
               icon={<Icon.warning width={15} height={15} />}
@@ -359,9 +372,15 @@ export default function JobsPage() {
                     free: "—",
                     notes: "",
                   };
+                  const needsKey =
+                    s.enabled && s.configured === false;
+                  const missingKeyList =
+                    needsKey && s.keyConfigKeys && s.keyConfigKeys.length > 0
+                      ? s.keyConfigKeys.join(", ")
+                      : null;
                   const tone = !s.enabled
                     ? "muted"
-                    : s.lastError
+                    : s.lastError || needsKey
                       ? "danger"
                       : "success";
                   return (
@@ -389,13 +408,43 @@ export default function JobsPage() {
                                 disabled
                               </Badge>
                             ) : null}
+                            {needsKey ? (
+                              <Badge tone="danger" variant="soft">
+                                key missing
+                              </Badge>
+                            ) : null}
                           </div>
                           <div className="mt-0.5 text-[12px] text-fg-muted">
                             {meta.notes}
                           </div>
+                          {needsKey && missingKeyList ? (
+                            <div className="mt-1 text-[11.5px] text-danger">
+                              No API call goes out — set{" "}
+                              <span className="font-mono text-fg">
+                                {missingKeyList}
+                              </span>{" "}
+                              in App Config.
+                            </div>
+                          ) : null}
                           {s.lastError ? (
                             <div className="mt-1 font-mono text-[11.5px] text-danger truncate max-w-md">
                               error: {s.lastError}
+                            </div>
+                          ) : null}
+                          {!s.lastError && s.lastStatus && s.lastStatus !== "ok" ? (
+                            <div
+                              className={`mt-1 font-mono text-[11.5px] truncate max-w-md ${
+                                ["auth_error", "rate_limited", "parse_error"].includes(
+                                  s.lastStatus,
+                                )
+                                  ? "text-danger"
+                                  : "text-warn"
+                              }`}
+                            >
+                              {s.lastStatus.replaceAll("_", " ")}
+                              {s.lastStatusDetail
+                                ? ` · ${s.lastStatusDetail}`
+                                : null}
                             </div>
                           ) : null}
                         </div>

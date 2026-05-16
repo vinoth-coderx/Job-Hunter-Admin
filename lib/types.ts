@@ -14,6 +14,7 @@ export type AppConfigCategory =
   | "email"
   | "firebase"
   | "cron"
+  | "ai"
   | "misc";
 
 export interface AppConfigEntry {
@@ -25,6 +26,13 @@ export interface AppConfigEntry {
   notes?: string;
   updatedAt: string;
   updatedBy?: string;
+  /**
+   * If set, the entry is auto-managed by another admin surface and
+   * direct edits here would be overwritten on the next sync. Currently
+   * used by the AiKey → AppConfig bridge to mark `GEMINI_API_KEY`,
+   * `ANTHROPIC_API_KEY` and `GROQ_API_KEY`.
+   */
+  managedBy?: { surface: string; href: string };
 }
 
 export interface AdminUser {
@@ -32,6 +40,7 @@ export interface AdminUser {
   email: string;
   activeRole: Role;
   isEmailVerified: boolean;
+  isPhoneVerified?: boolean;
   isBanned?: boolean;
   profile: {
     fullName: string;
@@ -42,6 +51,21 @@ export interface AdminUser {
     tier: SubscriptionTier;
     status: "active" | "expired" | "cancelled";
     endDate?: string;
+  };
+  // Trust & safety surface — populated by the admin users.controller
+  // GET /:id endpoint. The trust score, 2FA status, and per-user
+  // security signals power the "Trust & Safety" card on the user
+  // detail page.
+  twoFactor?: { enabled: boolean; method?: string; enrolledAt?: string };
+  security?: {
+    trustScore?: number;
+    failedLoginCount?: number;
+    lockedUntil?: string;
+    lastSeenIp?: string;
+  };
+  privacy?: {
+    openToWork?: boolean;
+    resumeVisibility?: "public" | "applied_only" | "private";
   };
   createdAt: string;
   lastSeenAt?: string;
@@ -59,7 +83,7 @@ export interface UserStats {
   activeToday: number;
 }
 
-export type AiProvider = "gemini" | "claude";
+export type AiProvider = "gemini" | "claude" | "groq";
 
 export interface AiKey {
   _id: string;
@@ -161,6 +185,15 @@ export interface JobSourceStat {
   lastRunAt?: string;
   lastJobCount?: number;
   lastError?: string;
+  /**
+   * Coarse-grained status of the last run for this source. One of
+   * 'ok' | 'no_key' | 'cooldown' | 'auth_error' | 'rate_limited'
+   *      | 'network_error' | 'empty_query' | 'parse_error' | 'unknown'.
+   * Surfaced from the backend so an all-zero row is debuggable.
+   */
+  lastStatus?: string;
+  /** Short human-readable explanation accompanying [lastStatus]. */
+  lastStatusDetail?: string;
   totalJobsAllTime?: number;
 }
 
@@ -174,6 +207,64 @@ export interface SubscriptionOverview {
   };
   activeSubscriptions: number;
   expiringIn7Days: number;
+}
+
+export interface SubscriptionPlan {
+  tier: string;
+  name: string;
+  priceInr: number;
+  durationDays: number;
+  features: string[];
+  jobMatchLimit: number;
+  apiCallLimit: number;
+  prioritySupport: boolean;
+  coinCost: number | null;
+  /** Monthly resume template PDF downloads. -1 = unlimited, 0 = blocked. */
+  templateDownloadsPerMonth: number;
+  isActive: boolean;
+  sortOrder: number;
+  badge: string | null;
+}
+
+export type SubscriptionPlanInput = Omit<SubscriptionPlan, "tier">;
+
+export interface ResumeTemplateAdmin {
+  _id: string;
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  liveSource: "original" | "enhanced";
+  previewImageUrl: string | null;
+  atsScore: number;
+  atsScoreSource: "ai" | "heuristic" | "unscored";
+  atsNotes: string[];
+  status: "draft" | "enhanced" | "published" | "archived";
+  isPremium: boolean;
+  sortOrder: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResumeTemplateAdminDetail {
+  template: ResumeTemplateAdmin & {
+    htmlOriginal: string;
+    htmlEnhanced: string | null;
+  };
+  liveHtml: string;
+  minPublishScore: number;
+}
+
+export interface ResumeTemplateEnhanceResponse {
+  template: ResumeTemplateAdmin & {
+    htmlOriginal: string;
+    htmlEnhanced: string | null;
+  };
+  changes: string[];
+  usedAi: boolean;
+  warnings: string[];
+  minPublishScore: number;
 }
 
 export type HealthState = "ok" | "warn" | "down" | "unknown";

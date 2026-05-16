@@ -25,6 +25,7 @@ const PROVIDER_PILLS: { value: ProviderFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "gemini", label: "Gemini" },
   { value: "claude", label: "Claude" },
+  { value: "groq", label: "Groq" },
 ];
 
 export default function AiPage() {
@@ -116,7 +117,7 @@ export default function AiPage() {
       <PageHeader
         eyebrow="Configure"
         title="AI Providers"
-        description="Per-key routing across Gemini and Claude. Priority + weight + per-feature allowlist drive every request."
+        description="Per-key routing across Gemini, Claude and Groq. Priority + weight + per-feature allowlist drive every request."
         actions={
           <>
             <Button
@@ -213,6 +214,16 @@ export default function AiPage() {
             />
           </section>
 
+          <section className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4 reveal-stagger">
+            <StatCard
+              label="Groq keys"
+              loading={loading && !keys}
+              value={keys ? (counts.groq ?? 0) : "—"}
+              hint="cheap-fast lane (Llama)"
+              icon={<Icon.spark width={15} height={15} />}
+            />
+          </section>
+
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <FilterPills<ProviderFilter>
               ariaLabel="Filter by provider"
@@ -229,6 +240,11 @@ export default function AiPage() {
                   value: "claude",
                   label: "Claude",
                   count: counts.claude ?? 0,
+                },
+                {
+                  value: "groq",
+                  label: "Groq",
+                  count: counts.groq ?? 0,
                 },
               ]}
             />
@@ -264,7 +280,7 @@ export default function AiPage() {
                     ? `Nothing matched "${search}".`
                     : missingBackend
                       ? "Once the backend exposes GET /admin/ai/keys, configured keys will render here."
-                      : "Adding a Gemini or Claude key here enables AI features across the platform."
+                      : "Adding a Gemini, Claude or Groq key here enables AI features across the platform."
                 }
                 action={
                   !search ? (
@@ -302,31 +318,42 @@ export default function AiPage() {
           <Card padding="md" className="mt-6">
             <CardHeader
               title="How routing works"
-              description="The provider router in services/ai/providers/index.ts picks a key per request."
+              description="One live key per provider, mirrored to App Config, with automatic fallback when a provider quota-errors."
             />
             <ol className="space-y-2 text-[12.5px] text-fg-muted">
               <li className="flex gap-2">
-                <span className="font-mono text-fg-subtle">1.</span> Filter to
-                keys whose <span className="font-mono text-fg">allowedFeatures</span> includes the
-                current feature.
+                <span className="font-mono text-fg-subtle">1.</span> Per
+                provider, the{" "}
+                <span className="font-mono text-fg">isActive</span> key with
+                the lowest <span className="font-mono text-fg">priority</span>{" "}
+                wins (ties → most recently updated).
               </li>
               <li className="flex gap-2">
-                <span className="font-mono text-fg-subtle">2.</span> Filter to
-                keys with{" "}
-                <span className="font-mono text-fg">isActive: true</span> and
-                remaining daily quota.
+                <span className="font-mono text-fg-subtle">2.</span> The
+                winning key is mirrored to App Config (
+                <span className="font-mono text-fg">GEMINI_API_KEY</span>,{" "}
+                <span className="font-mono text-fg">ANTHROPIC_API_KEY</span>,{" "}
+                <span className="font-mono text-fg">GROQ_API_KEY</span>) on
+                every save — no redeploy, no env edit.
               </li>
               <li className="flex gap-2">
-                <span className="font-mono text-fg-subtle">3.</span> Sort by{" "}
-                <span className="font-mono text-fg">priority</span> ascending,
-                then sample by{" "}
-                <span className="font-mono text-fg">weight</span> within the
-                top tier.
+                <span className="font-mono text-fg-subtle">3.</span> A request
+                hits the preferred provider first (caller-specified or{" "}
+                <span className="font-mono text-fg">AI_PROVIDER</span>{" "}
+                config). Providers without a key are skipped.
               </li>
               <li className="flex gap-2">
-                <span className="font-mono text-fg-subtle">4.</span> If the
-                request errors with a quota/rate-limit signature, fall through
-                to the next-priority key automatically.
+                <span className="font-mono text-fg-subtle">4.</span> On a
+                quota / rate-limit error, the call automatically falls
+                through to the next enabled provider in the chain. Non-quota
+                errors bubble up immediately.
+              </li>
+              <li className="flex gap-2">
+                <span className="font-mono text-fg-subtle">5.</span>{" "}
+                <span className="font-mono text-fg-subtle">
+                  Weight, daily-limit and per-feature allowlist are
+                  configured here but not yet enforced by the runtime router.
+                </span>
               </li>
             </ol>
           </Card>

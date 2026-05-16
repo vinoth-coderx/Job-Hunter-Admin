@@ -33,12 +33,35 @@ function toQuery(params: UserListParams): string {
   return q ? `?${q}` : "";
 }
 
+export interface UserTrustPayload {
+  sessions: Array<{
+    _id: string;
+    platform?: string;
+    ip?: string;
+    userAgent?: string;
+    geo?: { country?: string; region?: string; city?: string };
+    lastActivityAt?: string;
+    trusted?: boolean;
+  }>;
+  sessionCount: number;
+  recentEvents: Array<{
+    _id: string;
+    type: string;
+    severity: "info" | "low" | "medium" | "high" | "critical";
+    ip?: string;
+    createdAt: string;
+    acknowledged?: boolean;
+  }>;
+}
+
 export const usersApi = {
   list: (params: UserListParams = {}) =>
     api.get<UserListResponse>(`/admin/users${toQuery(params)}`),
   stats: () => api.get<UserStats>("/admin/users/stats"),
   get: (id: string) =>
     api.get<AdminUser>(`/admin/users/${encodeURIComponent(id)}`),
+  trust: (id: string) =>
+    api.get<UserTrustPayload>(`/admin/users/${encodeURIComponent(id)}/trust`),
   update: (id: string, body: UserUpdatePayload) =>
     api.patch<AdminUser>(`/admin/users/${encodeURIComponent(id)}`, body),
   ban: (id: string, reason?: string) =>

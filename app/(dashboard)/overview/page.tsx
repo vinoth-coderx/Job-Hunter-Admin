@@ -183,7 +183,7 @@ export default function OverviewPage() {
           <SectionCard
             icon="briefcase"
             title="Jobs & Sources"
-            description="Adzuna, SerpAPI, JSearch, TheirStack, Arbeitnow — last run + counts + manual fetch."
+            description="Adzuna, SerpAPI, JSearch, Real-Time Web Search, Arbeitnow — last run + counts + manual fetch."
             href="/jobs"
             meta={<><span className="font-mono">/admin/jobs/sources</span></>}
           />

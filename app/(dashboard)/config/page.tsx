@@ -58,16 +58,27 @@ export default function ConfigPage() {
     load();
   }, [load]);
 
+  // Rows that another admin surface owns end-to-end (today: AI provider
+  // API keys, owned by /ai) are filtered out of this page entirely.
+  // Keeping them visible was double-tracking the same setting — admins
+  // saw the row here, then bounced to /ai to actually edit it. The /ai
+  // surface is now the only place those rows surface; non-key configs
+  // in the same category (model overrides, cost guards, rewrite flags)
+  // still appear here because they're hand-editable.
+  const visibleEntries = useMemo(
+    () => (entries ?? []).filter((e) => !e.managedBy),
+    [entries],
+  );
+
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: entries?.length ?? 0 };
-    for (const e of entries ?? []) c[e.category] = (c[e.category] ?? 0) + 1;
+    const c: Record<string, number> = { all: visibleEntries.length };
+    for (const e of visibleEntries) c[e.category] = (c[e.category] ?? 0) + 1;
     return c;
-  }, [entries]);
+  }, [visibleEntries]);
 
   const filtered = useMemo(() => {
-    if (!entries) return [];
     const q = search.trim().toLowerCase();
-    return entries.filter((e) => {
+    return visibleEntries.filter((e) => {
       if (filter !== "all" && e.category !== filter) return false;
       if (!q) return true;
       return (
@@ -76,7 +87,7 @@ export default function ConfigPage() {
         (e.notes ?? "").toLowerCase().includes(q)
       );
     });
-  }, [entries, filter, search]);
+  }, [visibleEntries, filter, search]);
 
   const handleSaved = (saved: AppConfigEntry) => {
     setEntries((prev) => {

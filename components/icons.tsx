@@ -177,6 +177,31 @@ export const Icon = {
       <circle cx="16" cy="16" r="1.5" fill="currentColor" />
     </svg>
   ),
+  shield: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base} {...p}>
+      <path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6Z" />
+    </svg>
+  ),
+  flag: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base} {...p}>
+      <path d="M4 22V4" />
+      <path d="M4 4h12l-2 4 2 4H4" />
+    </svg>
+  ),
+  document: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base} {...p}>
+      <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" />
+      <path d="M14 3v6h6" />
+      <path d="M8 13h8" />
+      <path d="M8 17h6" />
+    </svg>
+  ),
+  badge: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...base} {...p}>
+      <path d="M12 2 4 6v7c0 4 3 7 8 9 5-2 8-5 8-9V6Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  ),
 };
 
 export type IconName = keyof typeof Icon;

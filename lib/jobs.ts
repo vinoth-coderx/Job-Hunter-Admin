@@ -64,11 +64,6 @@ export const SOURCE_META: Record<
     free: "200 / month",
     notes: "Subscribe to JSearch on RapidAPI.",
   },
-  theirstack: {
-    label: "TheirStack",
-    free: "—",
-    notes: "Billed per returned job; batched.",
-  },
   arbeitnow: {
     label: "Arbeitnow",
     free: "Unlimited",

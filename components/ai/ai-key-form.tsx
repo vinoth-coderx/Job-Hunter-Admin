@@ -20,6 +20,7 @@ interface AiKeyFormProps {
 const PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
   { value: "gemini", label: "Google Gemini" },
   { value: "claude", label: "Anthropic Claude" },
+  { value: "groq", label: "Groq · Llama" },
 ];
 
 const TIER_OPTIONS = [

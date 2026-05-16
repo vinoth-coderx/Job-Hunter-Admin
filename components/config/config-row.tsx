@@ -74,8 +74,19 @@ export function ConfigRow({
   return (
     <tr className="group border-b border-border last:border-b-0 hover:bg-panel-hover transition-colors">
       <td className="py-3 pl-5 pr-3 align-top">
-        <div className="font-mono text-[12.5px] font-medium text-fg">
-          {entry.key}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="font-mono text-[12.5px] font-medium text-fg">
+            {entry.key}
+          </div>
+          {entry.managedBy ? (
+            <Badge
+              tone="accent"
+              variant="soft"
+              title={`Auto-managed by ${entry.managedBy.surface}. Direct edits here are overwritten on the next sync.`}
+            >
+              managed by {entry.managedBy.surface.split(" ")[0]}
+            </Badge>
+          ) : null}
         </div>
         {entry.notes ? (
           <div className="mt-0.5 text-[11.5px] text-fg-muted line-clamp-2 max-w-[420px]">
@@ -119,25 +130,38 @@ export function ConfigRow({
           >
             Probe
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onEdit}
-            title="Edit"
-            leading={<Icon.sliders width={12} height={12} />}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onDelete}
-            title="Delete"
-            className="hover:text-danger"
-            leading={<Icon.x width={12} height={12} />}
-          >
-            Delete
-          </Button>
+          {entry.managedBy ? (
+            <a
+              href={entry.managedBy.href}
+              className="inline-flex h-7 items-center gap-1 px-2 rounded-md text-[11.5px] text-fg-muted hover:text-fg hover:bg-panel-hover transition-colors"
+              title={`Edit this on the ${entry.managedBy.surface}`}
+            >
+              <Icon.sliders width={12} height={12} />
+              Edit in {entry.managedBy.href}
+            </a>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onEdit}
+                title="Edit"
+                leading={<Icon.sliders width={12} height={12} />}
+              >
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onDelete}
+                title="Delete"
+                className="hover:text-danger"
+                leading={<Icon.x width={12} height={12} />}
+              >
+                Delete
+              </Button>
+            </>
+          )}
         </div>
         {probe.kind === "ok" || probe.kind === "fail" ? (
           <div className="mt-1.5 flex items-start gap-1.5 text-[11px] max-w-90">
