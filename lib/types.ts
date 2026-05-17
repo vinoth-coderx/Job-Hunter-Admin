@@ -17,12 +17,23 @@ export type AppConfigCategory =
   | "ai"
   | "misc";
 
+export type RuntimeMode = "test" | "live";
+
 export interface AppConfigEntry {
   key: string;
   category: AppConfigCategory;
   isSecret: boolean;
-  value?: string; // present iff isSecret === false
-  hasValue: boolean; // present iff isSecret === true (don't return ciphertext)
+  /** Active runtime mode = `test`. Non-secret rows surface the value; secret rows surface a masked preview only. */
+  testValue?: string;
+  liveValue?: string;
+  /** Mode-agnostic legacy slot (used by RUNTIME_MODE, CRON_ENABLED, …). */
+  legacyValue?: string;
+  hasTestValue: boolean;
+  hasLiveValue: boolean;
+  hasLegacyValue: boolean;
+  testPreview?: string | null;
+  livePreview?: string | null;
+  legacyPreview?: string | null;
   notes?: string;
   updatedAt: string;
   updatedBy?: string;

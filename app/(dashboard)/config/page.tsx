@@ -14,14 +14,16 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/icons";
 import { ConfigForm } from "@/components/config/config-form";
 import { ConfigRow } from "@/components/config/config-row";
+import { ModeToggle } from "@/components/config/mode-toggle";
 import { CATEGORIES, CATEGORY_META, configApi } from "@/lib/config";
 import { ApiError, isMissingBackend } from "@/lib/api";
-import type { AppConfigCategory, AppConfigEntry } from "@/lib/types";
+import type { AppConfigCategory, AppConfigEntry, RuntimeMode } from "@/lib/types";
 
 type CategoryFilter = "all" | AppConfigCategory;
 
 export default function ConfigPage() {
   const [entries, setEntries] = useState<AppConfigEntry[] | null>(null);
+  const [mode, setMode] = useState<RuntimeMode>("live");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [missingBackend, setMissingBackend] = useState(false);
@@ -35,8 +37,13 @@ export default function ConfigPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await configApi.list();
+      // Fetch list + mode in parallel — independent endpoints.
+      const [res, modeRes] = await Promise.all([
+        configApi.list(),
+        configApi.getMode().catch(() => ({ mode: "live" as RuntimeMode })),
+      ]);
       setEntries(res.entries);
+      setMode(modeRes.mode);
       setMissingBackend(false);
     } catch (err) {
       if (isMissingBackend(err)) {
@@ -135,6 +142,10 @@ export default function ConfigPage() {
           </>
         }
       />
+
+      <div className="mb-5">
+        <ModeToggle mode={mode} loading={loading} onModeChange={setMode} />
+      </div>
 
       {missingBackend ? (
         <div className="mb-6 surface p-4 reveal border-[color-mix(in_oklab,var(--warn)_30%,var(--border))] flex items-start gap-3">
@@ -269,7 +280,12 @@ export default function ConfigPage() {
                     <tr className="text-[10.5px] uppercase tracking-widest text-fg-subtle font-medium border-b border-border">
                       <th className="py-2.5 pl-5 pr-3 font-medium">Key</th>
                       <th className="py-2.5 px-3 font-medium">Category</th>
-                      <th className="py-2.5 px-3 font-medium">Value</th>
+                      <th className="py-2.5 px-3 font-medium">
+                        Test{mode === "test" ? " ●" : ""}
+                      </th>
+                      <th className="py-2.5 px-3 font-medium">
+                        Live{mode === "live" ? " ●" : ""}
+                      </th>
                       <th className="py-2.5 px-3 font-medium">Type</th>
                       <th className="py-2.5 px-3 font-medium">Updated</th>
                       <th className="py-2.5 px-3 font-medium">Actions</th>
@@ -281,6 +297,7 @@ export default function ConfigPage() {
                       <ConfigRow
                         key={e.key}
                         entry={e}
+                        mode={mode}
                         onEdit={() => setEditing(e)}
                         onDelete={() => setDeleting(e)}
                       />
