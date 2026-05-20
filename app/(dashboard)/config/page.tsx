@@ -14,16 +14,17 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/icons";
 import { ConfigForm } from "@/components/config/config-form";
 import { ConfigRow } from "@/components/config/config-row";
-import { ModeToggle } from "@/components/config/mode-toggle";
 import { CATEGORIES, CATEGORY_META, configApi } from "@/lib/config";
 import { ApiError, isMissingBackend } from "@/lib/api";
-import type { AppConfigCategory, AppConfigEntry, RuntimeMode } from "@/lib/types";
+import { useRuntimeMode } from "@/components/layout/runtime-mode-provider";
+import { RUNTIME_MODE_EVENT } from "@/lib/runtime-mode";
+import type { AppConfigCategory, AppConfigEntry } from "@/lib/types";
 
 type CategoryFilter = "all" | AppConfigCategory;
 
 export default function ConfigPage() {
+  const { mode } = useRuntimeMode();
   const [entries, setEntries] = useState<AppConfigEntry[] | null>(null);
-  const [mode, setMode] = useState<RuntimeMode>("live");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [missingBackend, setMissingBackend] = useState(false);
@@ -37,13 +38,8 @@ export default function ConfigPage() {
     setLoading(true);
     setError(null);
     try {
-      // Fetch list + mode in parallel — independent endpoints.
-      const [res, modeRes] = await Promise.all([
-        configApi.list(),
-        configApi.getMode().catch(() => ({ mode: "live" as RuntimeMode })),
-      ]);
+      const res = await configApi.list();
       setEntries(res.entries);
-      setMode(modeRes.mode);
       setMissingBackend(false);
     } catch (err) {
       if (isMissingBackend(err)) {
@@ -63,6 +59,14 @@ export default function ConfigPage() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // Re-fetch when the dashboard tab flips between Test and Live so the
+  // visible list matches the mode the header is now requesting.
+  useEffect(() => {
+    const onFlip = () => load();
+    window.addEventListener(RUNTIME_MODE_EVENT, onFlip);
+    return () => window.removeEventListener(RUNTIME_MODE_EVENT, onFlip);
   }, [load]);
 
   // Rows that another admin surface owns end-to-end (today: AI provider
@@ -143,8 +147,10 @@ export default function ConfigPage() {
         }
       />
 
-      <div className="mb-5">
-        <ModeToggle mode={mode} loading={loading} onModeChange={setMode} />
+      <div className="mb-5 surface p-3 text-[12px] text-fg-muted flex items-center gap-2">
+        <Icon.pulse width={13} height={13} className="text-accent" />
+        Viewing <strong className="text-fg">{mode === "live" ? "🚀 Live" : "🧪 Test"}</strong> data.
+        Flip in the top header to see the other mode.
       </div>
 
       {missingBackend ? (
@@ -280,12 +286,7 @@ export default function ConfigPage() {
                     <tr className="text-[10.5px] uppercase tracking-widest text-fg-subtle font-medium border-b border-border">
                       <th className="py-2.5 pl-5 pr-3 font-medium">Key</th>
                       <th className="py-2.5 px-3 font-medium">Category</th>
-                      <th className="py-2.5 px-3 font-medium">
-                        Test{mode === "test" ? " ●" : ""}
-                      </th>
-                      <th className="py-2.5 px-3 font-medium">
-                        Live{mode === "live" ? " ●" : ""}
-                      </th>
+                      <th className="py-2.5 px-3 font-medium">Value</th>
                       <th className="py-2.5 px-3 font-medium">Type</th>
                       <th className="py-2.5 px-3 font-medium">Updated</th>
                       <th className="py-2.5 px-3 font-medium">Actions</th>
@@ -297,7 +298,6 @@ export default function ConfigPage() {
                       <ConfigRow
                         key={e.key}
                         entry={e}
-                        mode={mode}
                         onEdit={() => setEditing(e)}
                         onDelete={() => setDeleting(e)}
                       />

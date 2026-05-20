@@ -7,7 +7,7 @@ import { Icon } from "@/components/icons";
 import { ApiError } from "@/lib/api";
 import { configApi, CATEGORY_META } from "@/lib/config";
 import { formatRelative } from "@/lib/format";
-import type { AppConfigEntry, RuntimeMode } from "@/lib/types";
+import type { AppConfigEntry } from "@/lib/types";
 
 type ProbeState =
   | { kind: "idle" }
@@ -15,22 +15,17 @@ type ProbeState =
   | { kind: "ok"; latencyMs?: number; message?: string }
   | { kind: "fail"; message: string; latencyMs?: number };
 
-interface ConfigRowProps {
+export function ConfigRow({
+  entry,
+  onEdit,
+  onDelete,
+}: {
   entry: AppConfigEntry;
-  mode: RuntimeMode;
   onEdit: () => void;
   onDelete: () => void;
-}
-
-/**
- * Render a single config row across two columns — Test slot + Live slot.
- * The column matching the active runtime mode is visually emphasised so
- * an operator can tell at a glance which credentials the backend is
- * currently serving. Mode-agnostic rows (only the legacy slot populated)
- * span both columns with a single "shared" preview.
- */
-export function ConfigRow({ entry, mode, onEdit, onDelete }: ConfigRowProps) {
+}) {
   const [probe, setProbe] = useState<ProbeState>({ kind: "idle" });
+  const [revealed, setRevealed] = useState(false);
 
   const doProbe = async () => {
     setProbe({ kind: "loading" });
@@ -50,31 +45,31 @@ export function ConfigRow({ entry, mode, onEdit, onDelete }: ConfigRowProps) {
     }
   };
 
-  const renderSlot = (
-    has: boolean,
-    preview: string | null | undefined,
-    plain: string | undefined,
-    isSecret: boolean,
-    active: boolean,
-  ) => {
-    if (!has) {
-      return <span className="text-fg-subtle italic">not set</span>;
-    }
-    const text = isSecret ? preview ?? "••••" : plain ?? preview ?? "";
-    return (
-      <span
-        className={`font-mono truncate inline-block max-w-[200px] align-bottom ${
-          active ? "text-fg" : "text-fg-muted"
-        }`}
-      >
-        {text}
+  const valueDisplay = entry.isSecret ? (
+    entry.hasValue ? (
+      <span className="inline-flex items-center gap-2">
+        <span className="font-mono text-fg-subtle tracking-widest">
+          {revealed ? "stored" : "••••••••••••"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setRevealed((v) => !v)}
+          className="text-[11px] text-fg-subtle hover:text-fg transition-colors"
+          title="Reveal whether a value is stored"
+        >
+          {revealed ? "hide" : "info"}
+        </button>
       </span>
-    );
-  };
-
-  // Mode-agnostic row — only the legacy slot is populated, span both columns
-  const onlyLegacy =
-    entry.hasLegacyValue && !entry.hasTestValue && !entry.hasLiveValue;
+    ) : (
+      <span className="text-fg-subtle italic">not set</span>
+    )
+  ) : entry.value ? (
+    <span className="font-mono text-fg truncate inline-block max-w-[360px] align-bottom">
+      {entry.value}
+    </span>
+  ) : (
+    <span className="text-fg-subtle italic">empty</span>
+  );
 
   return (
     <tr className="group border-b border-border last:border-b-0 hover:bg-panel-hover transition-colors">
@@ -108,55 +103,7 @@ export function ConfigRow({ entry, mode, onEdit, onDelete }: ConfigRowProps) {
           {entry.category}
         </Badge>
       </td>
-
-      {onlyLegacy ? (
-        <td
-          className="py-3 px-3 align-top text-[12.5px]"
-          colSpan={2}
-          title="Mode-agnostic — same value serves both Test and Live"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <Badge tone="muted" variant="soft" className="text-[10px]">
-              shared
-            </Badge>
-            {renderSlot(true, entry.legacyPreview, entry.legacyValue, entry.isSecret, true)}
-          </span>
-        </td>
-      ) : (
-        <>
-          <td
-            className={`py-3 px-3 align-top text-[12.5px] ${
-              mode === "test"
-                ? "bg-[color-mix(in_oklab,var(--warn)_8%,transparent)]"
-                : ""
-            }`}
-          >
-            {renderSlot(
-              entry.hasTestValue,
-              entry.testPreview,
-              entry.testValue,
-              entry.isSecret,
-              mode === "test",
-            )}
-          </td>
-          <td
-            className={`py-3 px-3 align-top text-[12.5px] ${
-              mode === "live"
-                ? "bg-[color-mix(in_oklab,var(--success)_8%,transparent)]"
-                : ""
-            }`}
-          >
-            {renderSlot(
-              entry.hasLiveValue,
-              entry.livePreview,
-              entry.liveValue,
-              entry.isSecret,
-              mode === "live",
-            )}
-          </td>
-        </>
-      )}
-
+      <td className="py-3 px-3 align-top text-[12.5px]">{valueDisplay}</td>
       <td className="py-3 px-3 align-top">
         {entry.isSecret ? (
           <Badge tone="accent" variant="soft">
@@ -178,7 +125,7 @@ export function ConfigRow({ entry, mode, onEdit, onDelete }: ConfigRowProps) {
             variant="ghost"
             onClick={doProbe}
             loading={probe.kind === "loading"}
-            title={`Probe upstream (active mode: ${mode})`}
+            title="Probe upstream"
             leading={<Icon.pulse width={12} height={12} />}
           >
             Probe

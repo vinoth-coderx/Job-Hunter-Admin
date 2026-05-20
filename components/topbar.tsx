@@ -8,6 +8,7 @@ import { Icon } from "./icons";
 import { Badge } from "./ui/badge";
 import { API_BASE_URL } from "@/lib/api";
 import { authApi, performLogout } from "@/lib/auth-api";
+import { useRuntimeMode } from "@/components/layout/runtime-mode-provider";
 
 function findCrumbs(pathname: string) {
   for (const g of navGroups) {
@@ -35,6 +36,7 @@ export function Topbar() {
     }
   }, []);
 
+  const { mode } = useRuntimeMode();
   const [email, setEmail] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -80,6 +82,16 @@ export function Topbar() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Badge
+            tone={mode === "live" ? "success" : "warn"}
+            variant="soft"
+            className="font-mono"
+            title={`Authenticated against the ${mode.toUpperCase()} Mongo cluster. Sign out to switch.`}
+          >
+            <span aria-hidden>{mode === "live" ? "🚀" : "🧪"}</span>
+            {mode === "live" ? "LIVE" : "TEST"}
+          </Badge>
+
           <button
             type="button"
             className="hidden md:inline-flex items-center gap-2 h-8 pl-3 pr-2 rounded-md border border-border bg-panel text-[12.5px] text-fg-muted hover:bg-panel-hover hover:border-border-strong transition-colors"

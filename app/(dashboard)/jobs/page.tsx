@@ -57,10 +57,7 @@ export default function JobsPage() {
       for (const e of configRes.entries) {
         if (!e.key.startsWith("JOB_FRESHNESS_DAYS_")) continue;
         const source = e.key.replace("JOB_FRESHNESS_DAYS_", "").toLowerCase();
-        // Mode-agnostic numeric override — prefer the legacy slot, then
-        // fall back to whichever side is populated.
-        const raw = e.legacyValue ?? e.liveValue ?? e.testValue;
-        const n = Number(raw);
+        const n = Number(e.value);
         if (Number.isFinite(n) && n > 0) days[source] = n;
       }
       setFreshnessDays(days);
@@ -184,7 +181,7 @@ export default function JobsPage() {
         key: FRESHNESS_KEY(source),
         category: "job-board",
         isSecret: false,
-        legacyValue: String(days),
+        value: String(days),
         notes: `Freshness window (days) for the ${source} scraper`,
       });
     } catch (err) {

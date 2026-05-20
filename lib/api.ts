@@ -1,4 +1,5 @@
 import { getAccessToken } from "./auth";
+import { getRuntimeMode } from "./runtime-mode";
 
 // The backend lives in the parallel `job_hunter_backend` project. Configure
 // the base URL via NEXT_PUBLIC_API_BASE_URL (e.g. http://localhost:4000/api/v1
@@ -47,6 +48,13 @@ async function request<T>(
   if (auth) {
     const token = getAccessToken();
     if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
+  }
+  // Inject the active runtime mode so the backend scopes the request
+  // to the matching Mongo. Operators pick the mode on the login screen
+  // (`components/auth/login-form.tsx`); localStorage persists across
+  // refreshes and the dashboard topbar surfaces a read-only badge.
+  if (!finalHeaders.has("X-Runtime-Mode")) {
+    finalHeaders.set("X-Runtime-Mode", getRuntimeMode());
   }
 
   let res: Response;

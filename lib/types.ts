@@ -23,17 +23,10 @@ export interface AppConfigEntry {
   key: string;
   category: AppConfigCategory;
   isSecret: boolean;
-  /** Active runtime mode = `test`. Non-secret rows surface the value; secret rows surface a masked preview only. */
-  testValue?: string;
-  liveValue?: string;
-  /** Mode-agnostic legacy slot (used by RUNTIME_MODE, CRON_ENABLED, …). */
-  legacyValue?: string;
-  hasTestValue: boolean;
-  hasLiveValue: boolean;
-  hasLegacyValue: boolean;
-  testPreview?: string | null;
-  livePreview?: string | null;
-  legacyPreview?: string | null;
+  /** Plaintext for non-secret rows; absent for secrets. */
+  value?: string;
+  /** True when a stored value exists in the active mode's DB. */
+  hasValue: boolean;
   notes?: string;
   updatedAt: string;
   updatedBy?: string;

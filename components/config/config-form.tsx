@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
@@ -24,30 +24,6 @@ interface ConfigFormProps {
 
 const KEY_REGEX = /^[A-Z][A-Z0-9_]{0,79}$/;
 
-/**
- * Build the upsert payload for a single slot:
- *   - `undefined` → don't touch the slot on the server
- *   - `''`        → clear the slot
- *   - non-empty   → write the slot
- *
- * For secrets on an existing entry, leaving the input empty means "keep
- * what's stored" → maps to `undefined`. For non-secrets, an empty input
- * is a deliberate clear → maps to `''`.
- */
-const buildSlotPayload = (
-  raw: string,
-  touched: boolean,
-  isEdit: boolean,
-  isSecret: boolean,
-): string | undefined => {
-  if (!touched) return undefined;
-  const trimmed = raw.trim();
-  if (trimmed.length > 0) return trimmed;
-  // Empty input
-  if (isEdit && isSecret) return undefined; // keep existing ciphertext
-  return ""; // clear the slot
-};
-
 export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
   const isEdit = Boolean(initial);
   const [key, setKey] = useState(initial?.key ?? "");
@@ -55,41 +31,18 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
     initial?.category ?? "misc",
   );
   const [isSecret, setIsSecret] = useState(initial?.isSecret ?? false);
-
-  // Three slot inputs — Test, Live, and a "mode-agnostic" Shared slot
-  // (rendered behind an "Advanced" disclosure for mode-agnostic keys).
-  const [testValue, setTestValue] = useState(
-    initial && !initial.isSecret ? initial.testValue ?? "" : "",
-  );
-  const [liveValue, setLiveValue] = useState(
-    initial && !initial.isSecret ? initial.liveValue ?? "" : "",
-  );
-  const [legacyValue, setLegacyValue] = useState(
-    initial && !initial.isSecret ? initial.legacyValue ?? "" : "",
-  );
-  // "touched" flags so we can tell user-intent ('' = clear) from inertia
-  // ('' = haven't typed yet). Without these every save would clobber a
-  // slot the operator never opened.
-  const [testTouched, setTestTouched] = useState(false);
-  const [liveTouched, setLiveTouched] = useState(false);
-  const [legacyTouched, setLegacyTouched] = useState(false);
-
-  const [showLegacy, setShowLegacy] = useState(
-    Boolean(initial?.hasLegacyValue && !initial?.hasTestValue && !initial?.hasLiveValue),
-  );
-
+  const [value, setValue] = useState(initial?.value ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     key?: string;
-    test?: string;
-    live?: string;
-    legacy?: string;
-    slot?: string;
+    value?: string;
   }>({});
 
-  // Registry of suggested keys — only loaded for new entries.
+  // Registry of suggested keys — only loaded for new entries so the
+  // operator can pick a known key (auto-fills category + secret flag +
+  // hint) instead of remembering the exact name.
   const [registry, setRegistry] = useState<ConfigRegistryEntry[] | null>(null);
   const [suggestPick, setSuggestPick] = useState<string>("");
 
@@ -109,17 +62,10 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
     };
   }, [isEdit]);
 
-  // Toggling secret mode wipes any user-typed inputs so the masked
-  // placeholders re-apply cleanly.
+  // When switching to "secret" mode on an existing entry, blank the value
+  // field so the placeholder communicates "leave empty to keep existing".
   useEffect(() => {
-    if (isEdit && isSecret) {
-      setTestValue("");
-      setLiveValue("");
-      setLegacyValue("");
-      setTestTouched(false);
-      setLiveTouched(false);
-      setLegacyTouched(false);
-    }
+    if (isEdit && isSecret) setValue("");
   }, [isEdit, isSecret]);
 
   const applySuggestion = (suggestKey: string) => {
@@ -130,12 +76,7 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
     setKey(entry.key);
     setCategory(entry.category);
     setIsSecret(entry.isSecret);
-    if (entry.defaultValue && !entry.isSecret) {
-      // Default values are env defaults — drop them into the Live slot so
-      // a fresh install starts in a working live state.
-      setLiveValue(entry.defaultValue);
-      setLiveTouched(true);
-    }
+    if (entry.defaultValue && !entry.isSecret) setValue(entry.defaultValue);
     setNotes(
       entry.usedBy
         ? `${entry.description} (used by ${entry.usedBy})`
@@ -154,29 +95,14 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
 
     const errs: typeof fieldErrors = {};
     if (!KEY_REGEX.test(key.trim())) {
-      errs.key = "Use UPPER_SNAKE_CASE, must start with a letter, max 80 chars.";
+      errs.key =
+        "Use UPPER_SNAKE_CASE, must start with a letter, max 80 chars.";
     }
-
-    const testPayload = buildSlotPayload(testValue, testTouched, isEdit, isSecret);
-    const livePayload = buildSlotPayload(liveValue, liveTouched, isEdit, isSecret);
-    const legacyPayload = buildSlotPayload(
-      legacyValue,
-      legacyTouched,
-      isEdit,
-      isSecret,
-    );
-
-    // New entry must have at least one slot filled (non-empty).
-    if (!isEdit) {
-      const anyFilled = [testPayload, livePayload, legacyPayload].some(
-        (v) => typeof v === "string" && v.length > 0,
-      );
-      if (!anyFilled) {
-        errs.slot =
-          "Provide a value for at least one slot (Test, Live, or Shared).";
-      }
+    const trimmedValue = value.trim();
+    const valueOptional = isEdit && isSecret && trimmedValue.length === 0;
+    if (!valueOptional && trimmedValue.length === 0 && !isSecret) {
+      errs.value = "Required for non-secret entries.";
     }
-
     if (Object.keys(errs).length) {
       setFieldErrors(errs);
       return;
@@ -188,9 +114,7 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
         key: key.trim(),
         category,
         isSecret,
-        testValue: testPayload,
-        liveValue: livePayload,
-        legacyValue: legacyPayload,
+        ...(valueOptional ? {} : { value: trimmedValue }),
         notes: notes.trim() || undefined,
       });
       onSaved(saved);
@@ -203,80 +127,6 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
     } finally {
       setSaving(false);
     }
-  };
-
-  const inputType = isSecret ? "password" : "text";
-
-  const secretPlaceholder = useMemo(
-    () => (isEdit ? "•••• (leave empty to keep existing)" : "Paste the secret"),
-    [isEdit],
-  );
-  const plainPlaceholder = isEdit
-    ? "(leave empty to clear)"
-    : "Plaintext value";
-
-  const SlotInput = ({
-    label,
-    value,
-    onChange,
-    has,
-    hint,
-    error,
-    tone,
-  }: {
-    label: string;
-    value: string;
-    onChange: (raw: string) => void;
-    has: boolean;
-    hint?: string;
-    error?: string;
-    tone: "test" | "live" | "shared";
-  }) => {
-    const toneClass =
-      tone === "test"
-        ? "border-[color-mix(in_oklab,var(--warn)_30%,var(--border))]"
-        : tone === "live"
-          ? "border-[color-mix(in_oklab,var(--success)_30%,var(--border))]"
-          : "border-border";
-    const toneBadge =
-      tone === "test" ? (
-        <span className="text-warn text-[10.5px] uppercase tracking-widest font-semibold">
-          🧪 Test
-        </span>
-      ) : tone === "live" ? (
-        <span className="text-success text-[10.5px] uppercase tracking-widest font-semibold">
-          🚀 Live
-        </span>
-      ) : (
-        <span className="text-fg-muted text-[10.5px] uppercase tracking-widest font-semibold">
-          Shared (mode-agnostic)
-        </span>
-      );
-
-    return (
-      <div className={`surface p-3 space-y-1.5 ${toneClass}`}>
-        <div className="flex items-center justify-between gap-2">
-          {toneBadge}
-          {has ? (
-            <span className="text-[11px] text-success">stored</span>
-          ) : (
-            <span className="text-[11px] text-fg-subtle">empty</span>
-          )}
-        </div>
-        <Input
-          label={label}
-          type={inputType}
-          mono
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={isSecret ? secretPlaceholder : plainPlaceholder}
-          autoComplete="off"
-          spellCheck={false}
-          error={error}
-          hint={hint}
-        />
-      </div>
-    );
   };
 
   return (
@@ -352,59 +202,34 @@ export function ConfigForm({ initial, onSaved, onCancel }: ConfigFormProps) {
         />
       </div>
 
-      {fieldErrors.slot ? (
-        <div className="text-[12px] text-danger">{fieldErrors.slot}</div>
-      ) : null}
-
-      <SlotInput
-        label="Test value"
-        value={testValue}
-        onChange={(v) => {
-          setTestValue(v);
-          setTestTouched(true);
-        }}
-        has={Boolean(initial?.hasTestValue)}
-        tone="test"
-        error={fieldErrors.test}
-        hint="Used when runtime mode = Test. Leave empty to keep existing (secrets) or clear (non-secrets)."
-      />
-
-      <SlotInput
-        label="Live value"
-        value={liveValue}
-        onChange={(v) => {
-          setLiveValue(v);
-          setLiveTouched(true);
-        }}
-        has={Boolean(initial?.hasLiveValue)}
-        tone="live"
-        error={fieldErrors.live}
-        hint="Used when runtime mode = Live."
-      />
-
-      <button
-        type="button"
-        onClick={() => setShowLegacy((v) => !v)}
-        className="text-[11.5px] text-fg-muted hover:text-fg transition-colors inline-flex items-center gap-1"
-      >
-        <Icon.sliders width={11} height={11} />
-        {showLegacy ? "Hide" : "Show"} Shared (mode-agnostic) slot
-      </button>
-
-      {showLegacy ? (
-        <SlotInput
-          label="Shared value"
-          value={legacyValue}
-          onChange={(v) => {
-            setLegacyValue(v);
-            setLegacyTouched(true);
-          }}
-          has={Boolean(initial?.hasLegacyValue)}
-          tone="shared"
-          error={fieldErrors.legacy}
-          hint="Returned when the active-mode slot is empty. Best for keys that don't differ between Test and Live (e.g. CRON_ENABLED, AI keys, RATE_LIMIT_*)."
+      {isSecret ? (
+        <Input
+          type="password"
+          label="Secret value"
+          mono
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={
+            isEdit
+              ? "•••• (leave empty to keep existing)"
+              : "Paste the secret"
+          }
+          autoComplete="off"
+          spellCheck={false}
+          error={fieldErrors.value}
+          hint="Encrypted with AES-256-GCM before persisting."
         />
-      ) : null}
+      ) : (
+        <Textarea
+          label="Value"
+          mono
+          rows={3}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Plaintext value visible to admins."
+          error={fieldErrors.value}
+        />
+      )}
 
       <Textarea
         label="Notes"
